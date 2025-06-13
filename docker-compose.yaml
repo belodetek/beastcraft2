@@ -1,0 +1,120 @@
+version: '2.4'
+
+volumes:
+  resin-data:
+
+x-common: &common
+  tty: true
+  restart: unless-stopped
+
+services:
+  gpsd:
+    build: src/gpsd
+    <<: *common
+    entrypoint:
+    - /bin/sh
+    - -c
+    ports:
+      - 2947:2947
+    command:
+    - |
+      # https://docs.balena.io/reference/OS/configuration/
+      # Bus 001 Device 005: ID 1546:01a7 u-blox AG - www.u-blox.com u-blox 7 - GPS/GNSS Receiver
+      # SUBSYSTEM=="tty", ATTRS{idVendor}=="1546", ATTRS{idProduct}=="01a7", SYMLINK+="gps"
+      exec gpsd -GNn -D5 -F /var/run/gpsd.sock /dev/gps "$@"
+
+    healthcheck:
+      test:
+        - |
+          pgrep gpsd
+    devices:
+    - /dev/gps
+    # https://forums.balena.io/t/shared-memory-between-container-docker-compose/314435
+    # TBC: ideally avoid "host"
+    ipc: host
+    #ipc: "shareable"
+    labels:
+      io.balena.features.dbus: 1
+
+  # https://kovasky.me/blogs/chronyd/
+  chrony:
+    build: src/chrony
+    <<: *common
+    entrypoint:
+    - /bin/sh
+    - -c
+    ports:
+      - "123:123/udp"
+    command:
+    - |
+      cat <<EOF >/tmp/chrony.conf
+      allow
+      driftfile /var/lib/chrony/chrony/drift
+      refclock SHM 0 delay 0.5 refid NMEA
+      rtcsync
+      EOF
+
+      exec chronyd -nf /tmp/chrony.conf "$@"
+
+    healthcheck:
+      test:
+        - |
+          pgrep chronyd
+    cap_add:
+    - SYS_TIME
+    ipc: host
+    #ipc: "service:gpsd"
+    labels:
+      io.balena.features.dbus: 1
+
+  # https://hub.docker.com/r/instantlinux/nut-upsd
+  # https://anton.belodedenko.me/odd-jobs/
+  upsd:
+    image: instantlinux/nut-upsd:2.8.2-r2
+    <<: *common
+    ports:
+      - 3493:3493
+    environment:
+      PORT: /dev/ups
+    healthcheck:
+      test:
+        - |
+          pgrep upsd
+    cap_add:
+    - SYS_ADMIN
+    # https://docs.balena.io/reference/OS/configuration/
+    # Bus 001 Device 004: ID 067b:2303 Prolific Technology Inc. USB-Serial Controller
+    # SUBSYSTEM==\"tty\", ATTRS{idVendor}==\"067b\", ATTRS{idProduct}==\"2303\", SYMLINK+=\"ups\"
+    devices:
+    - /dev/ups
+    labels:
+      io.balena.features.dbus: 1
+
+  # https://github.com/SuperioOne/nut_webgui/pkgs/container/nut_webgui
+  nut_webgui:
+    image: ghcr.io/superioone/nut_webgui:0.4.2
+    ports:
+      - 80:9000
+    environment:
+      UPSD_ADDR: upsd
+    healthcheck:
+      test:
+        - |
+          wget -qO- localhost:9000/probes/readiness | grep -q READY
+
+  python:
+    image: python:3
+    <<: *common
+    entrypoint:
+    - /bin/sh
+    - -c
+    command:
+    - |
+      apt update && apt install -y vim
+
+      exec sleep infinity
+
+    cap_add:
+    - SYS_TIME
+    volumes:
+    - resin-data:/opt
