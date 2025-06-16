@@ -15,7 +15,7 @@ services:
     - /bin/sh
     - -c
     ports:
-      - 2947:2947
+    - 2947:2947
     command:
     - |
       # https://docs.balena.io/reference/OS/configuration/
@@ -25,8 +25,8 @@ services:
 
     healthcheck:
       test:
-        - |
-          pgrep gpsd
+      - |
+        pgrep gpsd
     devices:
     - /dev/gps
     # https://forums.balena.io/t/shared-memory-between-container-docker-compose/314435
@@ -44,7 +44,7 @@ services:
     - /bin/sh
     - -c
     ports:
-      - "123:123/udp"
+    - "123:123/udp"
     command:
     - |
       cat <<EOF >/tmp/chrony.conf
@@ -56,10 +56,14 @@ services:
 
       exec chronyd -nf /tmp/chrony.conf "$@"
 
+    tmpfs:
+    - /etc/chrony:rw,mode=1750
+    - /run/chrony:rw,mode=1750
+    - /var/lib/chrony:rw,mode=1750
     healthcheck:
       test:
-        - |
-          pgrep chronyd
+      - |
+        pgrep chronyd
     cap_add:
     - SYS_TIME
     ipc: host
@@ -73,13 +77,13 @@ services:
     image: instantlinux/nut-upsd:2.8.2-r2
     <<: *common
     ports:
-      - 3493:3493
+    - 3493:3493
     environment:
       PORT: /dev/ups
     healthcheck:
       test:
-        - |
-          pgrep upsd
+      - |
+        pgrep upsd
     cap_add:
     - SYS_ADMIN
     # https://docs.balena.io/reference/OS/configuration/
@@ -94,13 +98,13 @@ services:
   nut_webgui:
     image: ghcr.io/superioone/nut_webgui:0.4.2
     ports:
-      - 80:9000
+    - 80:9000
     environment:
       UPSD_ADDR: upsd
     healthcheck:
       test:
-        - |
-          wget -qO- localhost:9000/probes/readiness | grep -q READY
+      - |
+        wget -qO- localhost:9000/probes/readiness | grep -q READY
 
   python:
     image: python:3
