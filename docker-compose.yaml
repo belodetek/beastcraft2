@@ -66,6 +66,8 @@ services:
         pgrep chronyd
     cap_add:
     - SYS_TIME
+    depends_on:
+    - gpsd
     ipc: host
     #ipc: "service:gpsd"
     labels:
@@ -105,20 +107,5 @@ services:
       test:
       - |
         wget -qO- localhost:9000/probes/readiness | grep -q READY
-
-  python:
-    image: python:3
-    <<: *common
-    entrypoint:
-    - /bin/sh
-    - -c
-    command:
-    - |
-      apt update && apt install -y vim
-
-      exec sleep infinity
-
-    cap_add:
-    - SYS_TIME
-    volumes:
-    - resin-data:/opt
+    depends_on:
+    - upsd
