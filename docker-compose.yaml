@@ -3,11 +3,45 @@ version: '2.4'
 volumes:
   resin-data:
 
+networks:
+  web:
+    external: true
+
 x-common: &common
   tty: true
   restart: unless-stopped
 
 services:
+  traefik:
+    image: traefik:v3.4
+    command:
+    - --accesslog=true
+    - --api.dashboard=true
+    - --api.insecure=true
+    - --api=true
+    - --entrypoints.web.address=:80
+    - --entrypoints.metrics.address=:9090
+    - --metrics.prometheus.entryPoint=metrics
+    - --ping=true
+    - --providers.docker.endpoint=unix:///var/run/balena.sock
+    - --providers.docker.exposedbydefault=false
+    - --providers.docker=true
+    ports:
+    - 80:80
+    networks:
+    - web
+    environment:
+      DBUS_SYSTEM_BUS_ADDRESS: unix:path=/host/run/dbus/system_bus_socket
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.traefik-dashboard.rule: PathPrefix(`/traefik`) || PathPrefix(`/api`)
+      traefik.http.routers.traefik-dashboard.entrypoints: web
+      traefik.http.routers.traefik-dashboard.service: api@internal
+      traefik.http.routers.traefik-dashboard.middlewares: traefik-stripprefix@docker
+      traefik.http.middlewares.traefik-stripprefix.stripprefix.prefixes: /traefik
+      io.balena.features.balena-socket: 1
+      io.balena.features.dbus: 1
+
   gpsd:
     build: src/gpsd
     <<: *common
@@ -105,8 +139,6 @@ services:
   nut_webgui:
     image: ghcr.io/superioone/nut_webgui:0.4.2
     <<: *common
-    ports:
-    - 80:9000
     environment:
       UPSD_ADDR: upsd
     healthcheck:
@@ -115,6 +147,15 @@ services:
         wget -qO- localhost:9000/probes/readiness | grep -q READY
     depends_on:
     - upsd
+    networks:
+      - web
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.nut-webgui.rule: PathPrefix(`/nut`)
+      traefik.http.routers.nut-webgui.entrypoints: web
+      traefik.http.routers.nut-webgui.middlewares: nut-webgui-stripprefix@docker
+      traefik.http.services.nut-webgui.loadbalancer.server.port: 9000
+      traefik.http.middlewares.nut-webgui-stripprefix.stripprefix.prefixes: /nut
 
   bluetoothctl:
     build: src/bluetoothctl
@@ -158,3 +199,40 @@ services:
     - bluetoothctl
     labels:
       io.balena.features.dbus: 1
+
+  node-red:
+    build: src/node-red
+    <<: *common
+    entrypoint:
+    - /bin/bash
+    - "-c"
+    user: root  # start as root to fix permissions
+    command:
+    - |
+      mkdir -p /data
+      chown -R 1000:1000 /data
+
+      if [[ -n "${__NODE_RED_BACKUP_EXPORT_JSON__}" ]] && ! [[ -f /data/flows.json ]]; then
+          echo "${__NODE_RED_BACKUP_EXPORT_JSON__}" > /data/flows.json
+      fi
+
+      exec su node-red -c "npm --no-update-notifier --no-fund start \
+        --cache /data/.npm \
+        -- \
+        --userDir /data \
+        '$@'"
+
+    volumes:
+    - resin-data:/data
+    networks:
+    - web
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.node-red.rule: PathPrefix(`/node-red`)
+      traefik.http.routers.node-red.entrypoints: web
+      traefik.http.routers.node-red.middlewares: node-red-stripprefix@docker
+      traefik.http.services.node-red.loadbalancer.server.port: 1880
+      traefik.http.middlewares.node-red-stripprefix.stripprefix.prefixes: /node-red
+      io.balena.features.dbus: 1
+      io.balena.features.supervisor-api: 1
+      io.balena.features.balena-api: 1
