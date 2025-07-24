@@ -209,7 +209,7 @@ services:
       if [[ -n "$BT_DEVICE_0" ]]; then
           jbdtool -ajt bt:${BT_DEVICE_0} \
             -i ${UPDATE_INTERVAL:-300} \
-            -m ${MQTT_HOST:-mqtt}:${MQTT_TOPIC:-jbdtool}:${BT_DEVICE_0}
+            -m ${MQTT_HOST:-mqtt}:${MQTT_CLIENT:-jbdtool}:${BT_DEVICE_0}
       else
           exec sleep infinity
       fi
