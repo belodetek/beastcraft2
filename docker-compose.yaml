@@ -193,24 +193,27 @@ services:
     volumes:
     - mqtt-conf:/mosquitto/config
     - mqtt-data:/mosquitto/data
+    healthcheck:
+      test:
+      - |
+        mosquitto_pub -h mqtt -p 1883 -t 'test/topic' -m 'ping'
 
   jbdtool:
     build: src/jbdtool
     <<: *common
     entrypoint:
-    - /bin/sh
+    - /bin/bash
     - -c
     command:
     - |
       if [[ -n "$BT_DEVICE_0" ]]; then
-          jbdtool -at "bt:${BT_DEVICE_0}" -a -m "mqtt:jbdtool:${BT_DEVICE_0}"
-          sleep $(( (RANDOM % 300) + 60 ))
+          jbdtool -ajt bt:${BT_DEVICE_0} \
+            -i ${UPDATE_INTERVAL:-300} \
+            -m ${MQTT_HOST:-mqtt}:${MQTT_TOPIC:-jbdtool}:${BT_DEVICE_0}
       else
           exec sleep infinity
       fi
 
-    volumes:
-    - resin-data:/data
     environment:
       DBUS_SYSTEM_BUS_ADDRESS: unix:path=/host/run/dbus/system_bus_socket
     depends_on:
@@ -245,6 +248,9 @@ services:
     - resin-data:/data
     networks:
     - web
+    - default
+    depends_on:
+    - mqtt
     labels:
       traefik.enable: "true"
       traefik.http.routers.node-red.rule: PathPrefix(`/`)
