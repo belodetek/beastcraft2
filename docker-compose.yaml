@@ -2,6 +2,8 @@ version: '2.4'
 
 volumes:
   resin-data:
+  mqtt-conf:
+  mqtt-data:
 
 networks:
   web:
@@ -184,6 +186,14 @@ services:
     labels:
       io.balena.features.dbus: 1
 
+  # https://hub.docker.com/_/eclipse-mosquitto
+  mqtt:
+    image: eclipse-mosquitto:2
+    <<: *common
+    volumes:
+    - mqtt-conf:/mosquitto/config
+    - mqtt-data:/mosquitto/data
+
   jbdtool:
     build: src/jbdtool
     <<: *common
@@ -192,11 +202,20 @@ services:
     - -c
     command:
     - |
-      sleep infinity
+      if [[ -n "$BT_DEVICE_0" ]]; then
+          jbdtool -at "bt:${BT_DEVICE_0}" -a -m "mqtt:jbdtool:${BT_DEVICE_0}"
+          sleep $(( (RANDOM % 300) + 60 ))
+      else
+          exec sleep infinity
+      fi
+
+    volumes:
+    - resin-data:/data
     environment:
       DBUS_SYSTEM_BUS_ADDRESS: unix:path=/host/run/dbus/system_bus_socket
     depends_on:
     - bluetoothctl
+    - mqtt
     labels:
       io.balena.features.dbus: 1
 
