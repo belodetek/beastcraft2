@@ -210,7 +210,7 @@ services:
           for btd in ${BT_DEVICES}; do
               jbdtool -jt bt:${btd} \
                 -i ${UPDATE_INTERVAL:-300} \
-                -m ${MQTT_HOST:-mqtt}:${MQTT_CLIENT:-jbdtool}:bms-${btd}
+                -m ${MQTT_HOST:-mqtt}:${MQTT_CLIENT:-jbdtool}:${MQTT_TOPIC:-jbdtool}
           done
       else
           exec sleep infinity
