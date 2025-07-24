@@ -206,10 +206,12 @@ services:
     - -c
     command:
     - |
-      if [[ -n "$BT_DEVICE_0" ]]; then
-          jbdtool -ajt bt:${BT_DEVICE_0} \
-            -i ${UPDATE_INTERVAL:-300} \
-            -m ${MQTT_HOST:-mqtt}:${MQTT_CLIENT:-jbdtool}:${BT_DEVICE_0}
+      if [[ -n "$BT_DEVICES" ]]; then
+          for btd in ${BT_DEVICES}; do
+              jbdtool -jt bt:${btd} \
+                -i ${UPDATE_INTERVAL:-300} \
+                -m ${MQTT_HOST:-mqtt}:${MQTT_CLIENT:-jbdtool}:bms-${btd}
+          done
       else
           exec sleep infinity
       fi
@@ -256,6 +258,8 @@ services:
       traefik.http.routers.node-red.rule: PathPrefix(`/`)
       traefik.http.routers.node-red.entrypoints: web
       traefik.http.services.node-red.loadbalancer.server.port: 1880
+      # balena network ls | grep web
+      traefik.docker.network: 28a6b8d7a12145178eb99cef485c18ca_web
       io.balena.features.dbus: 1
       io.balena.features.supervisor-api: 1
       io.balena.features.balena-api: 1
