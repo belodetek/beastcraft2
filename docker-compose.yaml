@@ -186,6 +186,25 @@ services:
     labels:
       io.balena.features.dbus: 1
 
+  gps-mqtt:
+    build: src/gps-mqtt
+    <<: *common
+    entrypoint:
+    - /bin/sh
+    - -c
+    command:
+    - |
+      exec gpspipe gpsd -w | mosquitto_pub -h ${MQTT_HOST:-mqtt} -t ${MQTT_TOPIC:-gps} -l
+
+    healthcheck:
+      test:
+      - |
+        pgrep gpspipe && pgrep mosquitto_pub
+
+    depends_on:
+    - gpsd
+    - mqtt
+
   # https://hub.docker.com/_/eclipse-mosquitto
   mqtt:
     image: eclipse-mosquitto:2
